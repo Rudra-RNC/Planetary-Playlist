@@ -14,10 +14,10 @@ function rgbToHsl(r: number, g: number, b: number) {
 export function analysePixels(data: Uint8ClampedArray, width: number, height: number): Analysis {
   const cells: Cell[] = []
   let meanLightness = 0
-  for (let row = 0; row < SONIFICATION.rows; row += 1) {
-    for (let col = 0; col < SONIFICATION.columns; col += 1) {
-      const x = Math.min(width - 1, Math.floor((col + 0.5) * width / SONIFICATION.columns))
-      const y = Math.min(height - 1, Math.floor((row + 0.5) * height / SONIFICATION.rows))
+  for (let row = 0; row < SONIFICATION.grid.rows; row += 1) {
+    for (let col = 0; col < SONIFICATION.grid.columns; col += 1) {
+      const x = Math.min(width - 1, Math.floor((col + 0.5) * width / SONIFICATION.grid.columns))
+      const y = Math.min(height - 1, Math.floor((row + 0.5) * height / SONIFICATION.grid.rows))
       const i = (y * width + x) * 4
       const hsl = rgbToHsl(data[i], data[i + 1], data[i + 2])
       meanLightness += hsl.lightness
@@ -25,20 +25,19 @@ export function analysePixels(data: Uint8ClampedArray, width: number, height: nu
     }
   }
   meanLightness /= cells.length
-  const columns = Array.from({ length: SONIFICATION.columns }, (_, col) => cells.filter(cell => cell.col === col))
-  const quarterSummary = [0, 1, 2, 3].map(quarter => {
-    const part = cells.filter(cell => Math.floor(cell.col / 24) === quarter)
-    const avgHue = part.reduce((sum, cell) => sum + cell.hue, 0) / part.length
-    const tone = avgHue < 70 ? 'warm amber' : avgHue < 170 ? 'green and gold' : avgHue < 260 ? 'cool blue' : 'violet'
-    const energy = part.reduce((sum, cell) => sum + cell.salience, 0) / part.length > 0.2 ? 'active' : 'quiet'
-    return `${['Left', 'Lower-left', 'Lower-right', 'Right'][quarter]} quarter: ${tone}, ${energy}`
-  })
-  return { cells, columns, quarterSummary, meanLightness }
+  const sortedSalience = cells.map(cell => cell.salience).sort((a, b) => a - b)
+  const percentileIndex = Math.min(
+    sortedSalience.length - 1,
+    Math.floor(sortedSalience.length * SONIFICATION.selection.saliencePercentile),
+  )
+  const salienceThreshold = sortedSalience[percentileIndex] ?? 0
+  const columns = Array.from({ length: SONIFICATION.grid.columns }, (_, col) => cells.filter(cell => cell.col === col))
+  return { cells, columns, meanLightness, salienceThreshold }
 }
 
 export function analyseImage(image: HTMLImageElement): Analysis {
   const canvas = document.createElement('canvas')
-  canvas.width = SONIFICATION.columns; canvas.height = SONIFICATION.rows
+  canvas.width = SONIFICATION.grid.columns; canvas.height = SONIFICATION.grid.rows
   const context = canvas.getContext('2d')!
   context.drawImage(image, 0, 0, canvas.width, canvas.height)
   return analysePixels(context.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height)

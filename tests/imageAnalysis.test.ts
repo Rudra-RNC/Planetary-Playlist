@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { analysePixels } from '../src/analysis/imageAnalysis'
 
 describe('analysePixels', () => {
-  it('creates the fixed grid and quarter narration from image pixels', () => {
+  it('creates the fixed grid and adaptive salience threshold from image pixels', () => {
     const data = new Uint8ClampedArray(96 * 32 * 4)
     for (let index = 0; index < data.length; index += 4) {
       data[index] = 220
@@ -14,7 +14,7 @@ describe('analysePixels', () => {
     expect(result.cells).toHaveLength(96 * 32)
     expect(result.columns).toHaveLength(96)
     expect(result.columns.every(column => column.length === 32)).toBe(true)
-    expect(result.quarterSummary).toHaveLength(4)
     expect(result.meanLightness).toBeGreaterThan(0)
+    expect(result.salienceThreshold).toBeGreaterThanOrEqual(0)
   })
 })

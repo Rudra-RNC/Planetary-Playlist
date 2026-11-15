@@ -3,10 +3,11 @@ import tracksJson from "./data/tracks.json";
 import { analyseImage } from "./analysis/imageAnalysis";
 import { mapNotes } from "./mapping/noteMapping";
 import { AudioEngine } from "./audio/engine";
+import { assertScaleName } from "./config/sonification";
 import * as Tone from "tone";
 import type { Analysis, Track } from "./types";
 
-const tracks = tracksJson as Track[];
+const tracks = tracksJson.map((track) => ({ ...track, scale: assertScaleName(track.scale) }));
 
 export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -15,7 +16,6 @@ export default function App() {
   const [speed, setSpeed] = useState(1);
   const [volume, setVolume] = useState(62);
   const [muted, setMuted] = useState(false);
-  const [narration, setNarration] = useState(true);
   const [about, setAbout] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [imageReady, setImageReady] = useState(false);
@@ -37,10 +37,11 @@ export default function App() {
         void togglePlayback();
       }
       if (event.key.toLowerCase() === "r") restart();
-      if (event.key === "ArrowLeft")
-        setPosition((value) => Math.max(0, value - (event.shiftKey ? 10 : 1)));
-      if (event.key === "ArrowRight")
-        setPosition((value) => Math.min(95, value + (event.shiftKey ? 10 : 1)));
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        event.preventDefault();
+        const direction = event.key === "ArrowLeft" ? -1 : 1;
+        movePosition(direction * (event.shiftKey ? 10 : 1));
+      }
       if (event.key.toLowerCase() === "m") setMuted((value) => !value);
       if (event.key === "ArrowUp") changeVolume(5);
       if (event.key === "ArrowDown") changeVolume(-5);
@@ -52,12 +53,6 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  useEffect(() => {
-    if (!narration || !analysis || !selected) return;
-    const quarter = Math.min(3, Math.floor(position / 24));
-    const live = document.getElementById("narration");
-    if (live) live.textContent = analysis.quarterSummary[quarter];
-  }, [analysis, narration, position, selected]);
   useEffect(() => {
     engineRef.current?.setVolume(muted ? -60 : volume - 100);
   }, [muted, volume]);
@@ -71,7 +66,7 @@ export default function App() {
     setImageError(false);
     setAudioHint("");
     engineRef.current?.dispose();
-    engineRef.current = new AudioEngine(setPosition);
+    engineRef.current = new AudioEngine((column) => setPosition(column));
   }
   function onImageLoad(image: HTMLImageElement) {
     const nextAnalysis = analyseImage(image);
@@ -84,7 +79,7 @@ export default function App() {
     await engineRef.current.start();
     if (playing) engineRef.current.pause();
     else {
-      engineRef.current.setEvents(notes, selected.bpm, selected.rootNote);
+      engineRef.current.setEvents(notes, selected);
       engineRef.current.setVolume(muted ? -60 : volume - 100);
       engineRef.current.setSpeed(speed);
       engineRef.current.play();
@@ -99,7 +94,8 @@ export default function App() {
     setPlaying((value) => !value);
   }
   function restart() {
-    if (engineRef.current) {
+    if (engineRef.current && analysis && selected) {
+      engineRef.current.setEvents(notes, selected);
       engineRef.current.restart();
       setPlaying(true);
       setPosition(0);
@@ -121,9 +117,15 @@ export default function App() {
       return next;
     });
   }
+  function movePosition(delta: number) {
+    const next = Math.max(0, Math.min(95, position + delta));
+    engineRef.current?.seek(next);
+    setPosition(next);
+    setPlaying(false);
+  }
   function setColumn(event: React.MouseEvent<HTMLDivElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
-    setPosition(Math.round(((event.clientX - rect.left) / rect.width) * 95));
+    movePosition(Math.round(((event.clientX - rect.left) / rect.width) * 95) - position);
   }
 
   if (about)
@@ -167,7 +169,7 @@ export default function App() {
               <h2>Sound you can follow</h2>
               <p>
                 Every track includes a plain-language description, a visual
-                sound key, keyboard controls, and throttled live narration.
+                sound key, keyboard controls, and a readable source credit.
               </p>
             </article>
           </div>
@@ -250,7 +252,6 @@ export default function App() {
       </main>
     );
 
-  const quarter = analysis ? Math.min(3, Math.floor(position / 24)) : 0;
   return (
     <main
       className="shell now-playing"
@@ -276,12 +277,6 @@ export default function App() {
           <div
             className="image-stage"
             onClick={setColumn}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowLeft")
-                setPosition((value) => Math.max(0, value - 1));
-              if (event.key === "ArrowRight")
-                setPosition((value) => Math.min(95, value + 1));
-            }}
             role="slider"
             aria-label="Playhead position"
             aria-valuemin={0}
@@ -410,6 +405,17 @@ export default function App() {
               position.
             </p>
           </div>
+          <section className="panel description-panel">
+            <p>{selected.description}</p>
+            <div className="data-credit">
+              <span>DATA CREDIT</span>
+              <a href={selected.sourceUrl} target="_blank" rel="noreferrer">
+                {selected.credit} ↗
+              </a>
+            </div>
+          </section>
+        </aside>
+        <section className="playback-details" aria-label="Playback information">
           <section className="panel hearing-panel">
             <div className="panel-heading">
               <span className="eyebrow">WHAT YOU ARE HEARING</span>
@@ -436,33 +442,6 @@ export default function App() {
               </div>
             </div>
           </section>
-          <section className="panel description-panel">
-            <p>{selected.description}</p>
-            <div className="data-credit">
-              <span>DATA CREDIT</span>
-              <a href={selected.sourceUrl} target="_blank" rel="noreferrer">
-                {selected.credit} ↗
-              </a>
-            </div>
-          </section>
-          <section className="panel narration-panel">
-            <div>
-              <span className="eyebrow">LIVE NARRATION</span>
-              <button
-                className="toggle"
-                aria-pressed={narration}
-                onClick={() => setNarration((value) => !value)}
-              >
-                {narration ? "ON" : "OFF"}
-              </button>
-            </div>
-            <p>
-              {analysis
-                ? analysis.quarterSummary[quarter]
-                : "The playhead will describe the active quarter here."}
-            </p>
-            <div id="narration" className="sr-only" aria-live="polite" />
-          </section>
           <div className="meta-row">
             <span>
               KEY <strong>{selected.rootNote}</strong>
@@ -474,7 +453,7 @@ export default function App() {
               BPM <strong>{selected.bpm}</strong>
             </span>
           </div>
-        </aside>
+        </section>
       </section>
     </main>
   );

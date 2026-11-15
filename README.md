@@ -27,7 +27,7 @@ The project is configured for Vercel as a static site: use `npm run build` with 
 
 From the repository root, redeploy the latest local build with `npx vercel --prod` while authenticated to the Vercel project. The current public URL is `https://planetary-playlist.vercel.app/`.
 
-The mapping and analysis modules are pure and deterministic. Tone.js is isolated in `src/audio/`; the UI, keyboard map, and live narration are in `src/App.tsx`. Track metadata lives in `src/data/tracks.json`, and all six still frames are bundled under `public/tracks/` for offline-safe playback.
+The mapping and analysis modules are pure and deterministic. Tone.js is isolated in `src/audio/`; the UI and keyboard map are in `src/App.tsx`. Track metadata lives in `src/data/tracks.json`, and all ten still frames are bundled under `public/tracks/` for offline-safe playback.
 
 ## Scientific and media notes
 
