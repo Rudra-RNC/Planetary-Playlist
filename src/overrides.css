@@ -1,0 +1,26 @@
+.image-error {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  text-align: center;
+  background: #112a35;
+  color: #d5e9e4;
+}
+
+.audio-hint {
+  min-height: 20px;
+  color: #c7a66f;
+  font-size: 0.8rem;
+  margin: 8px 0 0;
+}
+
+.ai-note {
+  border-top: 1px solid #31515b;
+  padding-top: 18px;
+  margin-top: 24px;
+  color: #8fa9af;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
